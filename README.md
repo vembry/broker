@@ -1,2 +1,2 @@
 # broker
-is an attempt to create a message broker using golang
+This is an attempt to create a modular message broker using golang
