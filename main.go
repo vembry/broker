@@ -3,11 +3,13 @@ package main
 import (
 	"log"
 	nethttp "net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"broker/broker"
 	grpcserver "broker/server/grpc"
 	httpserver "broker/server/http"
-	sdksignal "sdk/signal"
 )
 
 func main() {
@@ -37,10 +39,26 @@ func main() {
 		}
 	}()
 
-	sdksignal.WatchForExitSignal()
+	WatchForExitSignal()
 	log.Println("shutting down...")
 
 	httpServer.Stop()
 	grpcServer.Stop()
 	queue.Stop() // shutdown queue
+}
+
+// WatchForExitSignal is to awaits incoming interrupt signal
+// sent to the service
+func WatchForExitSignal() os.Signal {
+	log.Printf("awaiting sigterm...")
+	ch := make(chan os.Signal, 4)
+	signal.Notify(
+		ch,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGTERM,
+		syscall.SIGTSTP,
+	)
+
+	return <-ch
 }
