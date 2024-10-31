@@ -10,11 +10,11 @@ type ActiveMessage struct {
 	Id         ksuid.KSUID `json:"id"`
 	QueueName  string      `json:"queue_name"`
 	PollExpiry time.Time   `json:"poll_expiry"`
-	Queue      *Message    `json:"queue"`
+	Message    *Message    `json:"message"`
 }
 
 type IdleQueue struct {
-	Messages []*Message `json:"items"`
+	Messages []*Message `json:"messages"`
 	// add other info
 	// ...
 }
@@ -25,6 +25,7 @@ type EnqueuePayload struct {
 }
 
 type Message struct {
+	Id      ksuid.KSUID
 	Payload string
 	// add other info
 	// ...

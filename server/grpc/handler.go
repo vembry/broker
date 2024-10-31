@@ -73,7 +73,7 @@ func (h *handler) Poll(ctx context.Context, req *pb.PollRequest) (*pb.PollRespon
 			QueueName:  message.QueueName,
 			PollExpiry: message.PollExpiry.String(),
 			Queue: &pb.Queue{
-				Payload: message.Queue.Payload,
+				Payload: message.Message.Payload,
 			},
 		},
 	}, nil

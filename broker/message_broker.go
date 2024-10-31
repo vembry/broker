@@ -62,7 +62,7 @@ func (b *broker) Enqueue(request model.EnqueuePayload) error {
 	defer unlocker()
 
 	// add enqueued payload to queue maps
-	idleQueue.Messages = append(idleQueue.Messages, &model.Message{Payload: request.Payload})
+	idleQueue.Messages = append(idleQueue.Messages, &model.Message{Id: ksuid.New(), Payload: request.Payload})
 
 	return nil
 }
@@ -79,37 +79,35 @@ func (b *broker) Poll(queueName string) (*model.ActiveMessage, error) {
 	}
 
 	// extract value from idleQueue's head
-	queue := idleQueue.Messages[0]
+	message := idleQueue.Messages[0]
 
 	// slice extracted-queue from idleQueue
 	idleQueue.Messages = idleQueue.Messages[1:]
 
-	queueId := ksuid.New()
-
 	// construct active queue entry
 	activeQueue := &model.ActiveMessage{
-		Id:         queueId,
+		Id:         message.Id,
 		QueueName:  queueName,
 		PollExpiry: time.Now().UTC().Add(20 * time.Second), // this is for sweeping purposes
-		Queue:      queue,
+		Message:    message,
 	}
 
-	b.activeMessage.Store(queueId, activeQueue)
+	b.activeMessage.Store(activeQueue.Id, activeQueue)
 
 	// return the polled queue
 	return activeQueue, nil
 }
 
 // CompletePoll is to ack-ed out poll-ed queue so it wont get poll-ed anymore
-func (b *broker) CompletePoll(queueId ksuid.KSUID) error {
+func (b *broker) CompletePoll(activeMessageId ksuid.KSUID) error {
 	// attempt to get queue
-	_, ok := b.activeMessage.Load(queueId)
+	_, ok := b.activeMessage.Load(activeMessageId)
 	if !ok {
-		return fmt.Errorf("queue not found")
+		return fmt.Errorf("active-message not found")
 	}
 
 	// remove queue from active queue
-	b.activeMessage.Delete(queueId)
+	b.activeMessage.Delete(activeMessageId)
 	return nil
 }
 
@@ -176,15 +174,15 @@ func (b *broker) sweepActual(key, value any) bool {
 }
 
 // deactivateMessage deactivate active message and put it back to idle queue
-func (b *broker) deactivateMessage(queue *model.ActiveMessage) {
+func (b *broker) deactivateMessage(activeMessage *model.ActiveMessage) {
 	// remove queue from active queue
-	b.activeMessage.Delete(queue.Id)
+	b.activeMessage.Delete(activeMessage.Id)
 
-	idleQueue, unlocker := b.retrieveIdle(queue.QueueName)
+	idleQueue, unlocker := b.retrieveIdle(activeMessage.QueueName)
 	defer unlocker()
 
 	// add active queue back to idle queue
-	idleQueue.Messages = append(idleQueue.Messages, queue.Queue)
+	idleQueue.Messages = append(idleQueue.Messages, activeMessage.Message)
 }
 
 // deactivateMessages deactivate active messages and put it back to idle queue
