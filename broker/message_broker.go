@@ -11,8 +11,8 @@ import (
 )
 
 type broker struct {
-	idleQueue   sync.Map
-	activeQueue sync.Map
+	idleQueue     sync.Map
+	activeMessage sync.Map
 
 	mutexMap sync.Map     // for locking purposes
 	ticker   *time.Ticker // for sweeping purposes
@@ -29,7 +29,7 @@ func New(backupProvider IBackup) *broker {
 
 	return &broker{
 		idleQueue:      sync.Map{},
-		activeQueue:    sync.Map{},
+		activeMessage:  sync.Map{},
 		ticker:         time.NewTicker(1 * time.Second),
 		mutexMap:       sync.Map{},
 		backupProvider: backupProvider,
@@ -41,17 +41,17 @@ func (b *broker) Get() model.QueueData {
 
 	i, j := 0, 0
 	b.idleQueue.Range(func(key, value any) bool {
-		i += len(value.(*model.IdleQueue).Items)
+		i += len(value.(*model.IdleQueue).Messages)
 		return true
 	})
-	b.activeQueue.Range(func(key, value any) bool {
+	b.activeMessage.Range(func(key, value any) bool {
 		j++
 		return true
 	})
 
 	return model.QueueData{
-		IdleQueueCount:   int64(i),
-		ActiveQueueCount: int64(j),
+		IdleQueueCount:     int64(i),
+		ActiveMessageCount: int64(j),
 	}
 }
 
@@ -62,39 +62,39 @@ func (b *broker) Enqueue(request model.EnqueuePayload) error {
 	defer unlocker()
 
 	// add enqueued payload to queue maps
-	idleQueue.Items = append(idleQueue.Items, &model.Queue{Payload: request.Payload})
+	idleQueue.Messages = append(idleQueue.Messages, &model.Message{Payload: request.Payload})
 
 	return nil
 }
 
 // poll is to get entry from queue head
-func (b *broker) Poll(queueName string) (*model.ActiveQueue, error) {
+func (b *broker) Poll(queueName string) (*model.ActiveMessage, error) {
 	// retrieve idle queue
 	idleQueue, unlocker := b.retrieveIdle(queueName)
 	defer unlocker()
 
 	// break away when queue has no entry
-	if len(idleQueue.Items) == 0 {
+	if len(idleQueue.Messages) == 0 {
 		return nil, nil
 	}
 
 	// extract value from idleQueue's head
-	queue := idleQueue.Items[0]
+	queue := idleQueue.Messages[0]
 
 	// slice extracted-queue from idleQueue
-	idleQueue.Items = idleQueue.Items[1:]
+	idleQueue.Messages = idleQueue.Messages[1:]
 
 	queueId := ksuid.New()
 
 	// construct active queue entry
-	activeQueue := &model.ActiveQueue{
+	activeQueue := &model.ActiveMessage{
 		Id:         queueId,
 		QueueName:  queueName,
 		PollExpiry: time.Now().UTC().Add(20 * time.Second), // this is for sweeping purposes
 		Queue:      queue,
 	}
 
-	b.activeQueue.Store(queueId, activeQueue)
+	b.activeMessage.Store(queueId, activeQueue)
 
 	// return the polled queue
 	return activeQueue, nil
@@ -103,19 +103,19 @@ func (b *broker) Poll(queueName string) (*model.ActiveQueue, error) {
 // CompletePoll is to ack-ed out poll-ed queue so it wont get poll-ed anymore
 func (b *broker) CompletePoll(queueId ksuid.KSUID) error {
 	// attempt to get queue
-	_, ok := b.activeQueue.Load(queueId)
+	_, ok := b.activeMessage.Load(queueId)
 	if !ok {
 		return fmt.Errorf("queue not found")
 	}
 
 	// remove queue from active queue
-	b.activeQueue.Delete(queueId)
+	b.activeMessage.Delete(queueId)
 	return nil
 }
 
 // Stop handler to shutdown broker
 func (b *broker) Stop() {
-	b.deactivateQueues()
+	b.deactivateMessages()
 
 	maps := map[string]*model.IdleQueue{}
 	b.idleQueue.Range(func(key, value any) bool {
@@ -156,41 +156,41 @@ func (b *broker) retrieveIdle(queueName string) (*model.IdleQueue, func()) {
 	}
 }
 
-// sweepWorker is to sweep expiring active queues
+// sweepWorker is to sweep expiring active messages
 func (b *broker) sweepWorker() {
 	for range b.ticker.C {
-		b.activeQueue.Range(b.sweepActual)
+		b.activeMessage.Range(b.sweepActual)
 	}
 }
 
-// sweepActual is to check and remove if an active-queue entry has expired
+// sweepActual is to check and remove when an active-message entry has expired
 func (b *broker) sweepActual(key, value any) bool {
-	val := value.(*model.ActiveQueue)
+	val := value.(*model.ActiveMessage)
 	if time.Now().After(val.PollExpiry) {
 		log.Printf("sweeping out %s...", val.Id)
 
-		b.deactivateQueue(val)
+		b.deactivateMessage(val)
 	}
 
 	return true
 }
 
-// deactivateQueue deactivate queue and put it back to idle queue
-func (b *broker) deactivateQueue(queue *model.ActiveQueue) {
+// deactivateMessage deactivate active message and put it back to idle queue
+func (b *broker) deactivateMessage(queue *model.ActiveMessage) {
 	// remove queue from active queue
-	b.activeQueue.Delete(queue.Id)
+	b.activeMessage.Delete(queue.Id)
 
 	idleQueue, unlocker := b.retrieveIdle(queue.QueueName)
 	defer unlocker()
 
 	// add active queue back to idle queue
-	idleQueue.Items = append(idleQueue.Items, queue.Queue)
+	idleQueue.Messages = append(idleQueue.Messages, queue.Queue)
 }
 
-// deactivateQueue deactivate queue and put it back to idle queue
-func (b *broker) deactivateQueues() {
-	b.activeQueue.Range(func(key, value any) bool {
-		b.deactivateQueue(value.(*model.ActiveQueue))
+// deactivateMessages deactivate active messages and put it back to idle queue
+func (b *broker) deactivateMessages() {
+	b.activeMessage.Range(func(key, value any) bool {
+		b.deactivateMessage(value.(*model.ActiveMessage))
 		return true
 	})
 }

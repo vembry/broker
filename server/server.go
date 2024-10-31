@@ -9,6 +9,6 @@ import (
 type IBroker interface {
 	Get() model.QueueData
 	Enqueue(payload model.EnqueuePayload) error
-	Poll(queueName string) (*model.ActiveQueue, error)
+	Poll(queueName string) (*model.ActiveMessage, error)
 	CompletePoll(queueId ksuid.KSUID) error
 }

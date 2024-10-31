@@ -28,8 +28,8 @@ func (h *handler) GetQueue(ctx context.Context, req *pb.GetQueueRequest) (*pb.Ge
 	return &pb.GetQueueResponse{
 		Message: "ok",
 		Data: &pb.QueueData{
-			IdleQueueCount:   res.IdleQueueCount,
-			ActiveQueueCount: res.ActiveQueueCount,
+			IdleQueueCount:     res.IdleQueueCount,
+			ActiveMessageCount: res.ActiveMessageCount,
 		},
 	}, nil
 }
@@ -50,7 +50,7 @@ func (h *handler) Enqueue(ctx context.Context, req *pb.EnqueueRequest) (*pb.Enqu
 
 // Poll retrieves selected queue's entry
 func (h *handler) Poll(ctx context.Context, req *pb.PollRequest) (*pb.PollResponse, error) {
-	queue, err := h.broker.Poll(req.GetQueueName())
+	message, err := h.broker.Poll(req.GetQueueName())
 	if err != nil {
 		return &pb.PollResponse{
 			Message: err.Error(),
@@ -59,7 +59,7 @@ func (h *handler) Poll(ctx context.Context, req *pb.PollRequest) (*pb.PollRespon
 
 	// when no entry can be polled from queue
 	// then return nothing
-	if queue == nil {
+	if message == nil {
 		return &pb.PollResponse{
 			Message: "no queue",
 			Data:    nil,
@@ -68,12 +68,12 @@ func (h *handler) Poll(ctx context.Context, req *pb.PollRequest) (*pb.PollRespon
 
 	return &pb.PollResponse{
 		Message: "ok",
-		Data: &pb.ActiveQueue{
-			Id:         queue.Id.String(),
-			QueueName:  queue.QueueName,
-			PollExpiry: queue.PollExpiry.String(),
+		Data: &pb.ActiveMessage{
+			Id:         message.Id.String(),
+			QueueName:  message.QueueName,
+			PollExpiry: message.PollExpiry.String(),
 			Queue: &pb.Queue{
-				Payload: queue.Queue.Payload,
+				Payload: message.Queue.Payload,
 			},
 		},
 	}, nil
