@@ -2,14 +2,12 @@ package main
 
 import (
 	"log"
-	nethttp "net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"broker/broker"
 	grpcserver "broker/server/grpc"
-	httpserver "broker/server/http"
 )
 
 func main() {
@@ -22,15 +20,7 @@ func main() {
 	queue := broker.New(nil) // initiate core queue
 	queue.Start()            // restore backed-up queues
 
-	httpServer := httpserver.New(queue) // initiate http server
 	grpcServer := grpcserver.New(queue) // iniitate grpc server
-
-	// http server
-	go func() {
-		if err := httpServer.Start(); err != nethttp.ErrServerClosed {
-			log.Fatalf("found error on starting http server. err=%v", err)
-		}
-	}()
 
 	// grpc server
 	go func() {
@@ -42,7 +32,6 @@ func main() {
 	WatchForExitSignal()
 	log.Println("shutting down...")
 
-	httpServer.Stop()
 	grpcServer.Stop()
 	queue.Stop() // shutdown queue
 }
