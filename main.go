@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"broker/broker"
+	"broker/message"
 	grpcserver "broker/server/grpc"
 )
 
@@ -17,8 +17,8 @@ func main() {
 	shutdownHandler := NewTracer()
 	defer shutdownHandler()
 
-	queue := broker.New(nil) // initiate core queue
-	queue.Start()            // restore backed-up queues
+	queue := message.NewBroker(nil) // initiate core queue
+	queue.Start()                   // restore backed-up queues
 
 	grpcServer := grpcserver.New(queue) // iniitate grpc server
 

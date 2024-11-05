@@ -1,4 +1,4 @@
-package broker
+package message
 
 import (
 	"broker/model"

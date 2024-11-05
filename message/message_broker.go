@@ -1,4 +1,4 @@
-package broker
+package message
 
 import (
 	"broker/model"
@@ -20,9 +20,10 @@ type broker struct {
 	backupProvider IBackup // to handle broker backups
 }
 
-func New(backupProvider IBackup) *broker {
-	// force backup provider to use file dumper
-	// when not defined
+// NewBroker initiate message broker
+func NewBroker(backupProvider IBackup) *broker {
+	// when 'backupProvider' not defined
+	// then use backup provider to use file dumper
 	if backupProvider == nil {
 		backupProvider = NewFileDumper("broker-backup")
 	}
