@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -16,11 +17,19 @@ func init() {
 	// TODO: remove this,
 	// this is a quick way to define otel prerequisite
 	os.Setenv("OTEL_SDK_DISABLED", "false")
-	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://host.docker.internal:10002")
 	os.Setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "5000")
 	os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
-	os.Setenv("OTEL_SERVICE_NAME", "broker")
 	os.Setenv("OTEL_TRACES_SAMPLER", "always_on")
+
+	// avoid setting env on os if provided
+	if strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")) == "" {
+		os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://host.docker.internal:10002")
+	}
+
+	// avoid setting env on os if provided
+	if strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")) == "" {
+		os.Setenv("OTEL_SERVICE_NAME", "broker")
+	}
 }
 
 func NewTracer() func() {
