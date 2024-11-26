@@ -8,6 +8,10 @@ import (
 
 	"broker/message"
 	grpcserver "broker/server/grpc"
+	"broker/server/grpc/interceptor"
+
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -20,9 +24,17 @@ func main() {
 	queue := message.NewBroker(nil) // initiate core queue
 	queue.Start()                   // restore backed-up queues
 
-	grpcServer := grpcserver.New(queue) // iniitate grpc server
+	// initate grpc server
+	grpcServer := grpcserver.New(
+		queue,   // dependencies
+		":4000", // grpc server address
 
-	// grpc server
+		// register interceptors
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),                     // for otel related
+		grpc.UnaryInterceptor(interceptor.Authenticate("some-passphrase")), //basic authenticate
+	)
+
+	// run grpc server
 	go func() {
 		if err := grpcServer.Start(); err != nil {
 			log.Fatalf("found error on starting grpc server. err=%v", err)
@@ -30,10 +42,11 @@ func main() {
 	}()
 
 	WatchForExitSignal()
+
 	log.Println("shutting down...")
 
-	grpcServer.Stop()
-	queue.Stop() // shutdown queue
+	grpcServer.Stop() // shutdown grpc server
+	queue.Stop()      // shutdown queue
 }
 
 // WatchForExitSignal is to awaits incoming interrupt signal
