@@ -39,8 +39,8 @@ jobs:
           push: true
           target: release
           tags: |
-            vembry/broker:latest
             vembry/broker:${{env.IMAGE_VERSION_TAG}}
+            vembry/broker:latest
 
       - name: log out from docker hub
         run: docker logout
