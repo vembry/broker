@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"broker/message"
@@ -15,7 +16,10 @@ import (
 )
 
 func main() {
-	log.Printf("hello broker!")
+	log.Printf("starting...")
+
+	// compile configs
+	appConfig := newConfig()
 
 	// setup app's tracer
 	shutdownHandler := NewTracer()
@@ -24,14 +28,25 @@ func main() {
 	queue := message.NewBroker(nil) // initiate core queue
 	queue.Start()                   // restore backed-up queues
 
+	// prep grpc interceptor
+	interceptors := []grpc.ServerOption{
+		grpc.StatsHandler(otelgrpc.NewServerHandler()), // for otel related
+	}
+
+	// when defined, include authorization interceptor
+	if !isStringEmpty(appConfig.Authorization) {
+		interceptors = append(interceptors, grpc.UnaryInterceptor(interceptor.Authenticate(appConfig.Authorization)))
+	} else {
+		log.Printf("running without authorization")
+	}
+
 	// initate grpc server
 	grpcServer := grpcserver.New(
-		queue,   // dependencies
-		":4000", // grpc server address
+		queue,                 // dependencies
+		appConfig.GrpcAddress, // grpc server address
 
 		// register interceptors
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),                     // for otel related
-		grpc.UnaryInterceptor(interceptor.Authenticate("some-passphrase")), //basic authenticate
+		interceptors...,
 	)
 
 	// run grpc server
@@ -41,7 +56,7 @@ func main() {
 		}
 	}()
 
-	WatchForExitSignal()
+	watchForExitSignal()
 
 	log.Println("shutting down...")
 
@@ -51,7 +66,7 @@ func main() {
 
 // WatchForExitSignal is to awaits incoming interrupt signal
 // sent to the service
-func WatchForExitSignal() os.Signal {
+func watchForExitSignal() os.Signal {
 	log.Printf("awaiting sigterm...")
 	ch := make(chan os.Signal, 4)
 	signal.Notify(
@@ -63,4 +78,30 @@ func WatchForExitSignal() os.Signal {
 	)
 
 	return <-ch
+}
+
+// config contains all the configurations for the app to use
+type config struct {
+	Authorization string
+	GrpcAddress   string
+}
+
+// newConfig compiles app's config provided on os env var
+func newConfig() *config {
+	cfg := &config{
+		Authorization: os.Getenv("AUTHORIZATION"),
+		GrpcAddress:   os.Getenv("GRPC_ADDRESS"),
+	}
+
+	if isStringEmpty(cfg.GrpcAddress) {
+		// defaults address
+		cfg.GrpcAddress = ":4000"
+	}
+
+	return cfg
+}
+
+func isStringEmpty(str string) bool {
+	str = strings.TrimSpace(str)
+	return str == ""
 }
