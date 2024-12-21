@@ -73,10 +73,10 @@ check for expiring message and put them back into the queue. `sweeper` will run 
 flowchart TD
     0a@{ shape: sm-circ, label: "Small start" } --> 1[iterate through the active message map]
     1 --> 2{has active message?}
-    2 -- no --> 0b@{ shape: framed-circle, label: "Stop" }
+    2 -- no --> 2.1[wait for interval]
+    2.1 --> 1
     2 -- yes --> 3[check message expiry]
     3 --> 4{expired?}
-    4 -- no --> 1
     4 -- yes --> 5[extract it from active message map]
     5 --> 6[put it back to idleQueue map]
     6 --> 1
