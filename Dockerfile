@@ -1,7 +1,7 @@
 # NOTE: this docker file came 
 
 # Build the application from source
-FROM golang:1.24.1-alpine AS base
+FROM golang:1.25-alpine AS base
 
 # copy broker
 WORKDIR /home/app/broker
